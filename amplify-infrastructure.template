@@ -1,0 +1,197 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "AWS Amplify Console infrastructure",
+  "Parameters": {
+    "Environment": {
+      "Description": "The name of the environment this stack is part of",
+      "Type": "String"
+    },
+    "OauthToken": {
+      "Description": "OauthToken for repository",
+      "Type": "String"
+    },
+    "Repository": {
+      "Description": "Repository clone url",
+      "Type": "String"
+    },
+    "ProdDomain": {
+      "Description": "Production domain",
+      "Type": "String"
+    },
+    "DevDomain": {
+      "Description": "Dev domain",
+      "Type": "String"
+    },
+    "ProdPrefix": {
+      "Description": "Production domain prefix",
+      "Type": "String"
+    },
+    "DevPrefix": {
+      "Description": "Dev domain prefix",
+      "Type": "String"
+    }
+  },
+  "Conditions": {
+    "Prod": {
+      "Fn::Equals": [
+        {
+          "Ref": "Environment"
+        },
+        "prod"
+      ]
+    },
+    "Dev": {
+      "Fn::Equals": [
+        {
+          "Ref": "Environment"
+        },
+        "dev"
+      ]
+    }
+  },
+  "Resources": {
+    "AmplifyRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "amplify.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "root",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "amplify:*",
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ],
+        "RoleName": "AmplifyRole"
+      }
+    },
+    "App": {
+      "Type": "AWS::Amplify::App",
+      "Properties": {
+        "Description": "Amplify App",
+        "Name": "app-name",
+        "OauthToken": {
+          "Ref": "OauthToken"
+        },
+        "Repository": {
+          "Ref": "Repository"
+        },
+        "CustomRules": [
+          {
+            "Source": "</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/>",
+            "Status": "200",
+            "Target": "/index.html"
+          }
+        ],
+        "IAMServiceRole": {
+          "Fn::GetAtt": [
+            "AmplifyRole",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "AppBranchDev": {
+      "Type": "AWS::Amplify::Branch",
+      "Condition": "Dev",
+      "Properties": {
+        "AppId": {
+          "Fn::GetAtt": [
+            "App",
+            "AppId"
+          ]
+        },
+        "EnableAutoBuild": true,
+        "BranchName": "develop"
+      }
+    },
+    "AppBranchDevDomain": {
+      "Type": "AWS::Amplify::Domain",
+      "Condition": "Dev",
+      "DependsOn": [
+        "AppBranchDev"
+      ],
+      "Properties": {
+        "AppId": {
+          "Fn::GetAtt": [
+            "App",
+            "AppId"
+          ]
+        },
+        "DomainName": {
+          "Ref": "DevDomain"
+        },
+        "SubDomainSettings": [
+          {
+            "BranchName": "develop",
+            "Prefix": {
+              "Ref": "DevPrefix"
+            }
+          }
+        ]
+      }
+    },
+    "AppBranchProd": {
+      "Type": "AWS::Amplify::Branch",
+      "Condition": "Prod",
+      "Properties": {
+        "AppId": {
+          "Fn::GetAtt": [
+            "App",
+            "AppId"
+          ]
+        },
+        "EnableAutoBuild": true,
+        "BranchName": "master"
+      }
+    },
+    "AppBranchProdDomain": {
+      "Type": "AWS::Amplify::Domain",
+      "DependsOn": [
+        "AppBranchProd"
+      ],
+      "Condition": "Prod",
+      "Properties": {
+        "AppId": {
+          "Fn::GetAtt": [
+            "App",
+            "AppId"
+          ]
+        },
+        "DomainName": {
+          "Ref": "ProdDomain"
+        },
+        "SubDomainSettings": [
+          {
+            "BranchName": "master",
+            "Prefix": {
+              "Ref": "ProdPrefix"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
